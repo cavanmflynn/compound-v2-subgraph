@@ -1,8 +1,9 @@
 /* eslint-disable prefer-const */ // to satisfy AS compiler
 
 // For each division by 10, add one to exponent to truncate one significant figure
-import { BigDecimal, BigInt, Bytes, Address } from '@graphprotocol/graph-ts'
-import { AccountCToken, Account, AccountCTokenTransaction } from '../types/schema'
+import { BigDecimal, BigInt, Bytes, TypedMap } from '@graphprotocol/graph-ts'
+import { AccountCToken, Account, AccountCTokenTransaction, Market } from '../types/schema'
+import { BIGDECIMAL_ZERO } from './constants'
 
 export function exponentToBigDecimal(decimals: i32): BigDecimal {
   let bd = BigDecimal.fromString('1')
@@ -99,4 +100,85 @@ export function getOrCreateAccountCTokenTransaction(
   }
 
   return transaction as AccountCTokenTransaction
+}
+
+export function supplyBalanceUnderlying(
+  cToken: AccountCToken,
+  market: Market,
+): BigDecimal {
+  return cToken.cTokenBalance.times(market.exchangeRate)
+}
+
+export function borrowBalanceUnderlying(
+  cToken: AccountCToken,
+  market: Market,
+): BigDecimal {
+  if (cToken.accountBorrowIndex.equals(BIGDECIMAL_ZERO)) {
+    return BIGDECIMAL_ZERO
+  }
+  return cToken.storedBorrowBalance
+    .times(market.borrowIndex)
+    .div(cToken.accountBorrowIndex)
+}
+
+export function tokenInEth(market: Market): BigDecimal {
+  return market.collateralFactor.times(market.exchangeRate).times(market.underlyingPrice)
+}
+
+export function totalCollateralValueInEth(
+  account: Account,
+  markets: TypedMap<string, Market>,
+  tokens: TypedMap<string, AccountCToken>,
+): BigDecimal {
+  let value = BIGDECIMAL_ZERO
+  let accountTokens = account.tokens
+
+  // `reduce` is not supported
+  for (let i = 0; i < accountTokens.length; i++) {
+    value = value.plus(
+      tokenInEth(markets.get(accountTokens[i]) as Market).times(
+        tokens.get(accountTokens[i]).cTokenBalance,
+      ),
+    )
+  }
+  return value
+}
+
+export function totalBorrowValueInEth(
+  account: Account,
+  markets: TypedMap<string, Market>,
+  tokens: TypedMap<string, AccountCToken>,
+): BigDecimal {
+  if (!account.hasBorrowed) {
+    return BIGDECIMAL_ZERO
+  }
+
+  let value = BIGDECIMAL_ZERO
+  let accountTokens = account.tokens
+
+  // `reduce` is not supported
+  for (let i = 0; i < accountTokens.length; i++) {
+    let market = markets.get(accountTokens[i]) as Market
+    value = value.plus(
+      market.underlyingPrice.times(
+        borrowBalanceUnderlying(tokens.get(accountTokens[i]) as AccountCToken, market),
+      ),
+    )
+  }
+  return value
+}
+
+export function health(
+  account: Account,
+  markets: TypedMap<string, Market>,
+  tokens: TypedMap<string, AccountCToken>,
+): BigDecimal {
+  if (!account.hasBorrowed) {
+    return null
+  }
+  let totalBorrow = totalBorrowValueInEth(account, markets, tokens)
+  if (totalBorrow.equals(BIGDECIMAL_ZERO)) {
+    return totalCollateralValueInEth(account, markets, tokens)
+  }
+  return totalCollateralValueInEth(account, markets, tokens).div(totalBorrow)
 }

@@ -10,6 +10,7 @@ import {
   NewReserveFactor,
   NewMarketInterestRateModel,
 } from '../types/templates/CToken/CToken'
+import { TypedMap } from '@graphprotocol/graph-ts'
 import {
   Market,
   Account,
@@ -19,6 +20,7 @@ import {
   TransferEvent,
   BorrowEvent,
   RepayEvent,
+  AccountCToken,
 } from '../types/schema'
 
 import { createMarket, updateMarket } from './markets'
@@ -28,6 +30,11 @@ import {
   exponentToBigDecimal,
   cTokenDecimalsBD,
   cTokenDecimals,
+  borrowBalanceUnderlying,
+  supplyBalanceUnderlying,
+  health,
+  totalBorrowValueInEth,
+  totalCollateralValueInEth,
 } from './helpers'
 
 /* Account supplies assets into market and receives cTokens in exchange
@@ -119,13 +126,33 @@ export function handleRedeem(event: Redeem): void {
  *    No need to updateMarket(), handleAccrueInterest() ALWAYS runs before this
  */
 export function handleBorrow(event: Borrow): void {
-  let market = Market.load(event.address.toHexString())
+  let market = Market.load(event.address.toHexString()) as Market
   let accountID = event.params.borrower.toHex()
-  let account = Account.load(accountID)
+  let account = Account.load(accountID) as Account
   if (account == null) {
     account = createAccount(accountID)
   }
+
+  let markets = new TypedMap<string, Market>()
+  let accountCTokens = new TypedMap<string, AccountCToken>()
+
+  let accountTokens = account.tokens
+  for (let i = 0; i < accountTokens.length; i++) {
+    markets.set(accountTokens[i], Market.load(accountTokens[i]) as Market)
+    accountCTokens.set(
+      accountTokens[i],
+      AccountCToken.load(accountTokens[i].concat('-').concat(accountID)) as AccountCToken,
+    )
+  }
+
   account.hasBorrowed = true
+  account.health = health(account, markets, accountCTokens)
+  account.totalBorrowValueInEth = totalBorrowValueInEth(account, markets, accountCTokens)
+  account.totalCollateralValueInEth = totalCollateralValueInEth(
+    account,
+    markets,
+    accountCTokens,
+  )
   account.save()
 
   // Update cTokenStats common for all events, and return the stats to update unique
@@ -153,6 +180,10 @@ export function handleBorrow(event: Borrow): void {
   cTokenStats.totalUnderlyingBorrowed = cTokenStats.totalUnderlyingBorrowed.plus(
     borrowAmountBD,
   )
+  cTokenStats.borrowBalanceUnderlying = borrowBalanceUnderlying(cTokenStats, market)
+  cTokenStats.lifetimeBorrowInterestAccrued = borrowBalanceUnderlying(cTokenStats, market)
+    .minus(cTokenStats.totalUnderlyingBorrowed)
+    .plus(cTokenStats.totalUnderlyingRepaid)
   cTokenStats.save()
 
   let borrowID = event.transaction.hash
@@ -195,7 +226,7 @@ export function handleBorrow(event: Borrow): void {
  *    repay.
  */
 export function handleRepayBorrow(event: RepayBorrow): void {
-  let market = Market.load(event.address.toHexString())
+  let market = Market.load(event.address.toHexString()) as Market
   let accountID = event.params.borrower.toHex()
   let account = Account.load(accountID)
   if (account == null) {
@@ -227,6 +258,10 @@ export function handleRepayBorrow(event: RepayBorrow): void {
   cTokenStats.totalUnderlyingRepaid = cTokenStats.totalUnderlyingRepaid.plus(
     repayAmountBD,
   )
+  cTokenStats.borrowBalanceUnderlying = borrowBalanceUnderlying(cTokenStats, market)
+  cTokenStats.lifetimeBorrowInterestAccrued = borrowBalanceUnderlying(cTokenStats, market)
+    .minus(cTokenStats.totalUnderlyingBorrowed)
+    .plus(cTokenStats.totalUnderlyingRepaid)
   cTokenStats.save()
 
   let repayID = event.transaction.hash
@@ -339,7 +374,7 @@ export function handleTransfer(event: Transfer): void {
   // We only updateMarket() if accrual block number is not up to date. This will only happen
   // with normal transfers, since mint, redeem, and seize transfers will already run updateMarket()
   let marketID = event.address.toHexString()
-  let market = Market.load(marketID)
+  let market = Market.load(marketID) as Market
   if (market.accrualBlockNumber != event.block.number.toI32()) {
     market = updateMarket(
       event.address,
@@ -384,6 +419,16 @@ export function handleTransfer(event: Transfer): void {
     cTokenStatsFrom.totalUnderlyingRedeemed = cTokenStatsFrom.totalUnderlyingRedeemed.plus(
       amountUnderylingTruncated,
     )
+    cTokenStatsFrom.supplyBalanceUnderlying = supplyBalanceUnderlying(
+      cTokenStatsFrom,
+      market,
+    )
+    cTokenStatsFrom.lifetimeSupplyInterestAccrued = supplyBalanceUnderlying(
+      cTokenStatsFrom,
+      market,
+    )
+      .minus(cTokenStatsFrom.totalUnderlyingSupplied)
+      .plus(cTokenStatsFrom.totalUnderlyingRedeemed)
     cTokenStatsFrom.save()
   }
 
@@ -420,6 +465,13 @@ export function handleTransfer(event: Transfer): void {
     cTokenStatsTo.totalUnderlyingSupplied = cTokenStatsTo.totalUnderlyingSupplied.plus(
       amountUnderylingTruncated,
     )
+    cTokenStatsTo.supplyBalanceUnderlying = supplyBalanceUnderlying(cTokenStatsTo, market)
+    cTokenStatsTo.lifetimeSupplyInterestAccrued = supplyBalanceUnderlying(
+      cTokenStatsTo,
+      market,
+    )
+      .minus(cTokenStatsTo.totalUnderlyingSupplied)
+      .plus(cTokenStatsTo.totalUnderlyingRedeemed)
     cTokenStatsTo.save()
   }
 

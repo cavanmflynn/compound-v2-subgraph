@@ -83,16 +83,16 @@ type Account @entity {
     "True if user has ever borrowed"
     hasBorrowed: Boolean!
 
-    # The following values are added by the JS Wrapper, and must be calculated with the most up
-    # to date values based on the block delta for market.exchangeRate and market.borrowIndex
-    # They do not need to be in the schema, but they will show up in the explorer playground
+    # The following values are calculated at the time of the most recent balance-changing event
+    # and therefore are not 100% up-to-date for the current block. The latest exchange rate and
+    # borrow index must be used to get fully up-to-date values.
 
     # "If less than 1, the account can be liquidated
-    # health: BigDecimal!
+    health: BigDecimal!
     # "Total assets supplied by user"
-    # totalBorrowValueInEth: BigDecimal!
+    totalBorrowValueInEth: BigDecimal!
     # "Total assets borrowed from user"
-    # totalCollateralValueInEth: BigDecimal!
+    totalCollateralValueInEth: BigDecimal!
 }
 
 """
@@ -130,20 +130,20 @@ type AccountCToken @entity {
     "Current borrow balance stored in contract (exclusive of interest since accrualBlockNumber)"
     storedBorrowBalance: BigDecimal!
 
-    # The following values are added by the JS Wrapper, and must be calculated with the most up
-    # to date values based on the block delta for market.exchangeRate and market.borrowIndex
-    # They do not need to be in the schema, but they will show up in the explorer playground
+    # The following values are calculated at the time of the most recent balance-changing event
+    # and therefore are not 100% up-to-date for the current block. The latest exchange rate and
+    # borrow index must be used to get fully up-to-date values.
 
-    # supplyBalanceUnderlying: BigDecimal!
+    supplyBalanceUnderlying: BigDecimal!
     # FORMULA: supplyBalanceUnderlying = cTokenBalance * market.exchangeRate
 
-    # lifetimeSupplyInterestAccrued: BigDecimal!
+    lifetimeSupplyInterestAccrued: BigDecimal!
     # FORMULA: lifetimeSupplyInterestAccrued = supplyBalanceUnderlying - totalUnderlyingSupplied + totalUnderlyingRedeemed
 
-    # borrowBalanceUnderlying: BigDecimal!
+    borrowBalanceUnderlying: BigDecimal!
     # FORMULA: borrowBalanceUnderlying = storedBorrowBalance * market.borrowIndex / accountBorrowIndex
 
-    # lifetimeBorrowInterestAccrued: BigDecimal!
+    lifetimeBorrowInterestAccrued: BigDecimal!
     # FORMULA: lifetimeBorrowInterestAccrued = borrowBalanceUnderlying - totalUnderlyingBorrowed + totalUnderlyingRepaid
 }
 
