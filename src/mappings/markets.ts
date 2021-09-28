@@ -2,7 +2,7 @@
 
 // For each division by 10, add one to exponent to truncate one significant figure
 import { Address, BigDecimal, BigInt, log } from '@graphprotocol/graph-ts'
-import { Market, Comptroller } from '../types/schema'
+import { Market, Comptroller, Markets } from '../types/schema'
 // PriceOracle is valid from Comptroller deployment until block 8498421
 import { PriceOracle } from '../types/templates/CToken/PriceOracle'
 // PriceOracle2 is valid from 8498422 until present block (until another proxy upgrade)
@@ -101,6 +101,15 @@ function getUSDCpriceETH(blockNumber: i32): BigDecimal {
       .div(mantissaFactorBD)
   }
   return usdPrice
+}
+
+export function getOrCreateMarkets(): Markets {
+  let markets = Markets.load('')
+  if (markets == null) {
+    markets = new Markets('')
+    markets.save()
+  }
+  return markets as Markets
 }
 
 export function createMarket(marketAddress: string): Market {

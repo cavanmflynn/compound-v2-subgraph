@@ -126,12 +126,11 @@ export function tokenInEth(market: Market): BigDecimal {
 }
 
 export function totalCollateralValueInEth(
-  account: Account,
+  accountTokens: string[],
   markets: TypedMap<string, Market>,
   tokens: TypedMap<string, AccountCToken>,
 ): BigDecimal {
   let value = BIGDECIMAL_ZERO
-  let accountTokens = account.tokens
 
   // `reduce` is not supported
   for (let i = 0; i < accountTokens.length; i++) {
@@ -146,6 +145,7 @@ export function totalCollateralValueInEth(
 
 export function totalBorrowValueInEth(
   account: Account,
+  accountTokens: string[],
   markets: TypedMap<string, Market>,
   tokens: TypedMap<string, AccountCToken>,
 ): BigDecimal {
@@ -154,7 +154,6 @@ export function totalBorrowValueInEth(
   }
 
   let value = BIGDECIMAL_ZERO
-  let accountTokens = account.tokens
 
   // `reduce` is not supported
   for (let i = 0; i < accountTokens.length; i++) {
@@ -170,15 +169,16 @@ export function totalBorrowValueInEth(
 
 export function health(
   account: Account,
+  accountTokens: string[],
   markets: TypedMap<string, Market>,
   tokens: TypedMap<string, AccountCToken>,
 ): BigDecimal {
   if (!account.hasBorrowed) {
     return null
   }
-  let totalBorrow = totalBorrowValueInEth(account, markets, tokens)
+  let totalBorrow = totalBorrowValueInEth(account, accountTokens, markets, tokens)
   if (totalBorrow.equals(BIGDECIMAL_ZERO)) {
-    return totalCollateralValueInEth(account, markets, tokens)
+    return totalCollateralValueInEth(accountTokens, markets, tokens)
   }
-  return totalCollateralValueInEth(account, markets, tokens).div(totalBorrow)
+  return totalCollateralValueInEth(accountTokens, markets, tokens).div(totalBorrow)
 }

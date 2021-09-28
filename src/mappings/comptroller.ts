@@ -14,7 +14,7 @@ import {
 import { CToken } from '../types/templates'
 import { Market, Comptroller, Account } from '../types/schema'
 import { mantissaFactorBD, updateCommonCTokenStats, createAccount } from './helpers'
-import { createMarket } from './markets'
+import { createMarket, getOrCreateMarkets } from './markets'
 
 export function handleMarketListed(event: MarketListed): void {
   // Dynamically index all new listed tokens
@@ -22,6 +22,10 @@ export function handleMarketListed(event: MarketListed): void {
   // Create the market for this token, since it's now been listed.
   let market = createMarket(event.params.cToken.toHexString())
   market.save()
+
+  let markets = getOrCreateMarkets()
+  markets.values.push(market.id)
+  markets.save()
 }
 
 export function handleMarketEntered(event: MarketEntered): void {

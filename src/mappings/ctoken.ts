@@ -21,6 +21,7 @@ import {
   BorrowEvent,
   RepayEvent,
   AccountCToken,
+  Markets,
 } from '../types/schema'
 
 import { createMarket, updateMarket } from './markets'
@@ -136,7 +137,7 @@ export function handleBorrow(event: Borrow): void {
   let markets = new TypedMap<string, Market>()
   let accountCTokens = new TypedMap<string, AccountCToken>()
 
-  let accountTokens = account.tokens
+  let accountTokens = (Markets.load('') as Markets).values as string[]
   for (let i = 0; i < accountTokens.length; i++) {
     markets.set(accountTokens[i], Market.load(accountTokens[i]) as Market)
     accountCTokens.set(
@@ -146,10 +147,15 @@ export function handleBorrow(event: Borrow): void {
   }
 
   account.hasBorrowed = true
-  account.health = health(account, markets, accountCTokens)
-  account.totalBorrowValueInEth = totalBorrowValueInEth(account, markets, accountCTokens)
-  account.totalCollateralValueInEth = totalCollateralValueInEth(
+  account.health = health(account, accountTokens, markets, accountCTokens)
+  account.totalBorrowValueInEth = totalBorrowValueInEth(
     account,
+    accountTokens,
+    markets,
+    accountCTokens,
+  )
+  account.totalCollateralValueInEth = totalCollateralValueInEth(
+    accountTokens,
     markets,
     accountCTokens,
   )

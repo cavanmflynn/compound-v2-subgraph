@@ -96,6 +96,16 @@ type Account @entity {
 }
 
 """
+Store markets in an array so we can access within the subgraph
+"""
+type Markets @entity {
+    "Empty id for easy access"
+    id: ID!
+    "Array of markets"
+    values: [Market!]
+}
+
+"""
 AccountCToken is a single account within a single cToken market, with data such
 as interest earned or paid
 """
